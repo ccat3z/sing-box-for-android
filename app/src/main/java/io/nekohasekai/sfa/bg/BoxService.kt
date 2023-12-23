@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
+import android.util.Log
 import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
@@ -318,6 +319,7 @@ class BoxService(
     }
 
     fun writeLog(message: String) {
+        Log.d("SingBox", message)
         binder.broadcast {
             it.onServiceWriteLog(message)
         }
