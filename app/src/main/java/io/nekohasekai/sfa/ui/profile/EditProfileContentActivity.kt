@@ -7,7 +7,7 @@ import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
-import com.blacksquircle.ui.language.json.JsonLanguage
+import com.blacksquircle.ui.language.yaml.YamlLanguage
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.database.Profile
@@ -34,7 +34,7 @@ class EditProfileContentActivity : AbstractActivity() {
         this.binding = binding
         setContentView(binding.root)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        binding.editor.language = JsonLanguage()
+        binding.editor.language = YamlLanguage()
         loadConfiguration()
     }
 

@@ -102,10 +102,12 @@ dependencies {
     implementation 'androidx.work:work-runtime-ktx:2.9.0'
     implementation 'androidx.browser:browser:1.7.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+    implementation 'com.charleskorn.kaml:kaml:0.56.0'
 
     // DO NOT UPDATE (minSdkVersion updated)
     implementation 'com.blacksquircle.ui:editorkit:2.2.0'
     implementation 'com.blacksquircle.ui:language-json:2.2.0'
+    implementation 'com.blacksquircle.ui:language-yaml:2.2.0'
 
     implementation('org.smali:dexlib2:2.5.2') {
         exclude group: 'com.google.guava', module: 'guava'

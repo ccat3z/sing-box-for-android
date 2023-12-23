@@ -1,6 +1,10 @@
 package io.nekohasekai.sfa.database
 
 import androidx.room.Room
+import com.charleskorn.kaml.Yaml
+import com.charleskorn.kaml.YamlList
+import com.charleskorn.kaml.YamlScalar
+import com.charleskorn.kaml.yamlMap
 import io.nekohasekai.sfa.Application
 import io.nekohasekai.sfa.bg.ProxyService
 import io.nekohasekai.sfa.bg.VPNService
@@ -80,15 +84,11 @@ object Settings {
         val selectedProfileId = selectedProfile
         if (selectedProfileId == -1L) return false
         val profile = ProfileManager.get(selectedProfile) ?: return false
-        val content = JSONObject(File(profile.typed.path).readText())
-        val inbounds = content.getJSONArray("inbounds")
-        for (index in 0 until inbounds.length()) {
-            val inbound = inbounds.getJSONObject(index)
-            if (inbound.getString("type") == "tun") {
-                return true
-            }
-        }
-        return false
+
+        val content = Yaml.default.parseToYamlNode(File(profile.typed.path).readText())
+        return content.yamlMap.get<YamlList>("inbounds")?.items?.any {
+            it.yamlMap.get<YamlScalar>("type")?.content == "tun"
+        } ?: false
     }
 
 }
