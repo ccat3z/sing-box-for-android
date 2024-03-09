@@ -4,12 +4,15 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
+import android.os.Build
 import android.os.Bundle
+import android.os.Process
+import android.text.Html
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.ActivityCompat
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
@@ -33,6 +36,7 @@ import io.nekohasekai.sfa.database.Settings
 import io.nekohasekai.sfa.database.TypedProfile
 import io.nekohasekai.sfa.databinding.ActivityMainBinding
 import io.nekohasekai.sfa.ktx.errorDialogBuilder
+import io.nekohasekai.sfa.ktx.hasPermission
 import io.nekohasekai.sfa.ui.profile.NewProfileActivity
 import io.nekohasekai.sfa.ui.shared.AbstractActivity
 import io.nekohasekai.sfa.vendor.Vendor
@@ -78,6 +82,8 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
 
         reconnect()
         startIntegration()
+
+        onNewIntent(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -99,7 +105,7 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
                         profile.host
                     )
                 )
-                .setPositiveButton(android.R.string.ok) { _, _ ->
+                .setPositiveButton(R.string.ok) { _, _ ->
                     startActivity(Intent(this, NewProfileActivity::class.java).apply {
                         putExtra("importName", profile.name)
                         putExtra("importURL", profile.url)
@@ -119,7 +125,7 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
                             content.name
                         )
                     )
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
+                    .setPositiveButton(R.string.ok) { _, _ ->
                         lifecycleScope.launch {
                             withContext(Dispatchers.IO) {
                                 runCatching {
@@ -184,25 +190,10 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
     }
 
     @SuppressLint("NewApi")
-    fun startService(skipRequestFineLocation: Boolean = false) {
+    fun startService() {
         if (!ServiceNotification.checkPermission()) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             return
-        }
-
-        // MIUI always return false for shouldShowRequestPermissionRationale
-        if (!skipRequestFineLocation && ContextCompat.checkSelfPermission(
-                this, Manifest.permission.ACCESS_FINE_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            if (!ActivityCompat.shouldShowRequestPermissionRationale(
-                    this, Manifest.permission.ACCESS_FINE_LOCATION
-                )
-            ) {
-                fineLocationPermissionLauncher.launch(
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                )
-            }
         }
 
         lifecycleScope.launch(Dispatchers.IO) {
@@ -231,11 +222,23 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
         }
     }
 
-    private val fineLocationPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) {
-        startService(true)
-    }
+    private val locationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            if (it) {
+                if (it && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    requestBackgroundLocationPermission()
+                } else {
+                    startService()
+                }
+            }
+        }
+
+    private val backgroundLocationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) {
+            if (it) {
+                startService()
+            }
+        }
 
     private val prepareLauncher = registerForActivityResult(PrepareService()) {
         if (it) {
@@ -275,8 +278,16 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
     }
 
     override fun onServiceAlert(type: Alert, message: String?) {
+        when (type) {
+            Alert.RequestLocationPermission -> {
+                return requestLocationPermission()
+            }
+
+            else -> {}
+        }
+
         val builder = MaterialAlertDialogBuilder(this)
-        builder.setPositiveButton(android.R.string.ok, null)
+        builder.setPositiveButton(R.string.ok, null)
         when (type) {
             Alert.RequestVPNPermission -> {
                 builder.setMessage(getString(R.string.service_error_missing_permission))
@@ -305,8 +316,96 @@ class MainActivity : AbstractActivity(), ServiceConnection.Callback {
                 builder.setMessage(message)
 
             }
+
+            else -> {}
         }
         builder.show()
+    }
+
+    private fun requestLocationPermission() {
+        if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
+            requestFineLocationPermission()
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            requestBackgroundLocationPermission()
+        }
+    }
+
+    private fun requestFineLocationPermission() {
+        val message = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            Html.fromHtml(
+                getString(R.string.location_permission_description),
+                Html.FROM_HTML_MODE_LEGACY
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            Html.fromHtml(getString(R.string.location_permission_description))
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.location_permission_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.ok) { _, _ ->
+                requestFineLocationPermission0()
+            }
+            .setNegativeButton(R.string.no_thanks, null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun requestFineLocationPermission0() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        } else {
+            openPermissionSettings()
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun requestBackgroundLocationPermission() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.location_permission_title)
+            .setMessage(
+                Html.fromHtml(
+                    getString(R.string.location_permission_background_description),
+                    Html.FROM_HTML_MODE_LEGACY
+                )
+            )
+            .setPositiveButton(R.string.ok) { _, _ ->
+                backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            }
+            .setNegativeButton(R.string.no_thanks, null)
+            .setCancelable(false)
+            .show()
+    }
+
+    private fun openPermissionSettings() {
+        if (!getSystemProperty("ro.miui.ui.version.name").isNullOrBlank()) {
+            val intent = Intent("miui.intent.action.APP_PERM_EDITOR")
+            intent.putExtra("extra_package_uid", Process.myUid())
+            intent.putExtra("extra_pkgname", packageName)
+            try {
+                startActivity(intent)
+                return
+            } catch (ignored: Exception) {
+            }
+        }
+
+        try {
+            val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.data = Uri.parse("package:$packageName")
+            startActivity(intent)
+        } catch (e: Exception) {
+            errorDialogBuilder(e).show()
+        }
+    }
+
+    @SuppressLint("PrivateApi")
+    fun getSystemProperty(key: String?): String? {
+        try {
+            return Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+                .invoke(null, key) as String
+        } catch (ignored: Exception) {
+        }
+        return null
     }
 
     private var paused = false

@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -78,11 +79,11 @@
                 <data android:host="*" />
                 <data android:mimeType="application/octet-stream" />
                 <data android:mimeType="text/*" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\..*\\.bpf" />
-                <data android:pathPattern=".*\\..*\\..*\\..*\\.bpf" />
-                <data android:pathPattern=".*\\..*\\..*\\.bpf" />
-                <data android:pathPattern=".*\\..*\\.bpf" />
-                <data android:pathPattern=".*\\.bpf" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\..*\\.bpf" />
+                <data android:pathPattern="/.*\\..*\\..*\\..*\\.bpf" />
+                <data android:pathPattern="/.*\\..*\\..*\\.bpf" />
+                <data android:pathPattern="/.*\\..*\\.bpf" />
+                <data android:pathPattern="/.*\\.bpf" />
             </intent-filter>
 
             <intent-filter>

@@ -11,5 +11,4 @@ object Vendor : VendorInterface {
     override fun checkUpdate(activity: Activity, byUser: Boolean) {
     }
 
-
 }

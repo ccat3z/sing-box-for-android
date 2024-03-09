@@ -21,12 +21,13 @@ import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.PlatformInterface
 import io.nekohasekai.libbox.SystemProxyStatus
 import io.nekohasekai.sfa.Application
-import io.nekohasekai.sfa.BuildConfig
+import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.constant.Action
 import io.nekohasekai.sfa.constant.Alert
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.database.ProfileManager
 import io.nekohasekai.sfa.database.Settings
+import io.nekohasekai.sfa.ktx.hasPermission
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
@@ -52,9 +53,7 @@ class BoxService(
             val tempDir = Application.application.cacheDir
             tempDir.mkdirs()
             Libbox.setup(baseDir.path, workingDir.path, tempDir.path, false)
-            if (!BuildConfig.DEBUG) {
-                Libbox.redirectStderr(File(workingDir, "stderr.log").path)
-            }
+            Libbox.redirectStderr(File(workingDir, "stderr.log").path)
             initializeOnce = true
             return
         }
@@ -123,6 +122,10 @@ class BoxService(
     private var lastProfileName = ""
     private suspend fun startService(delayStart: Boolean = false) {
         try {
+            withContext(Dispatchers.Main) {
+                notification.show(lastProfileName, R.string.status_starting)
+            }
+
             val selectedProfileId = Settings.selectedProfile
             if (selectedProfileId == -1L) {
                 stopAndAlert(Alert.EmptyConfiguration)
@@ -143,6 +146,7 @@ class BoxService(
 
             lastProfileName = profile.name
             withContext(Dispatchers.Main) {
+                notification.show(lastProfileName, R.string.status_starting)
                 binder.broadcast {
                     it.onServiceResetLogs(listOf())
                 }
@@ -164,13 +168,27 @@ class BoxService(
             }
 
             newService.start()
+
+            if (newService.needWIFIState()) {
+                val wifiPermission = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                    android.Manifest.permission.ACCESS_FINE_LOCATION
+                } else {
+                    android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                }
+                if (!service.hasPermission(wifiPermission)) {
+                    newService.close()
+                    stopAndAlert(Alert.RequestLocationPermission)
+                    return
+                }
+            }
+
             boxService = newService
             commandServer?.setService(boxService)
             status.postValue(Status.Started)
-
             withContext(Dispatchers.Main) {
-                notification.show(lastProfileName)
+                notification.show(lastProfileName, R.string.status_started)
             }
+            notification.start()
         } catch (e: Exception) {
             stopAndAlert(Alert.StartService, e.message)
             return
@@ -216,7 +234,7 @@ class BoxService(
     @RequiresApi(Build.VERSION_CODES.M)
     private fun serviceUpdateIdleMode() {
         if (Application.powerManager.isDeviceIdleMode) {
-            boxService?.sleep()
+            boxService?.pause()
         } else {
             boxService?.wake()
         }

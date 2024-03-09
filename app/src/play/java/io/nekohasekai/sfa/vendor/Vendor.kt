@@ -70,11 +70,8 @@ object Vendor : VendorInterface {
     }
 
     private fun Context.showNoUpdatesDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(io.nekohasekai.sfa.R.string.check_update)
-            .setMessage(R.string.no_updates_available)
-            .setPositiveButton(R.string.ok, null)
-            .show()
+        MaterialAlertDialogBuilder(this).setTitle(io.nekohasekai.sfa.R.string.check_update)
+            .setMessage(R.string.no_updates_available).setPositiveButton(R.string.ok, null).show()
     }
 
 }

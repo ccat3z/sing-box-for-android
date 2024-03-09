@@ -73,6 +73,9 @@ class SettingsFragment : Fragment() {
         binding.checkUpdateButton.setOnClickListener {
             Vendor.checkUpdate(activity, true)
         }
+        binding.openPrivacyPolicyButton.setOnClickListener {
+            activity.launchCustomTab("https://sing-box.sagernet.org/clients/privacy/")
+        }
         binding.disableMemoryLimit.addTextChangedListener {
             lifecycleScope.launch(Dispatchers.IO) {
                 val newValue = EnabledType.valueOf(it).boolValue
@@ -100,14 +103,11 @@ class SettingsFragment : Fragment() {
         binding.configureOverridesButton.setOnClickListener {
             startActivity(Intent(requireContext(), ProfileOverrideActivity::class.java))
         }
-        binding.communityButton.setOnClickListener {
-            it.context.launchCustomTab("https://community.sagernet.org/")
-        }
-        binding.documentationButton.setOnClickListener {
-            it.context.launchCustomTab("http://sing-box.sagernet.org/installation/clients/sfa/")
-        }
         binding.openDebugButton.setOnClickListener {
             startActivity(Intent(requireContext(), DebugActivity::class.java))
+        }
+        binding.startSponserButton.setOnClickListener {
+            activity.launchCustomTab("https://sekai.icu/sponsors/")
         }
         lifecycleScope.launch(Dispatchers.IO) {
             reloadSettings()
