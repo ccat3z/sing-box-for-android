@@ -23,6 +23,7 @@
             android:id="@+id/logView"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
+            android:clipChildren="false"
             android:clipToPadding="false"
             android:padding="16dp"
             android:visibility="gone" />
@@ -36,9 +37,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:backgroundTint="@color/blue_grey_600"
-        app:srcCompat="@drawable/ic_play_arrow_24"
-        app:tint="@android:color/white" />
+        app:srcCompat="@drawable/ic_play_arrow_24" />
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -11,6 +11,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.android.tools.smali.dexlib2.dexbacked.DexBackedDexFile
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.databinding.ActivityVpnScanBinding
@@ -20,24 +21,18 @@ import io.nekohasekai.sfa.ui.shared.AbstractActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.jf.dexlib2.dexbacked.DexBackedDexFile
 import java.io.File
 import java.util.zip.ZipFile
 import kotlin.math.roundToInt
 
-class VPNScanActivity : AbstractActivity() {
+class VPNScanActivity : AbstractActivity<ActivityVpnScanBinding>() {
 
-    private var binding: ActivityVpnScanBinding? = null
     private var adapter: Adapter? = null
     private val appInfoList = mutableListOf<AppInfo>()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setTitle(R.string.title_scan_vpn)
-        val binding = ActivityVpnScanBinding.inflate(layoutInflater)
-        this.binding = binding
-        setContentView(binding.root)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         binding.scanVPNResult.adapter = Adapter().also {
             adapter = it
         }
@@ -119,7 +114,6 @@ class VPNScanActivity : AbstractActivity() {
 
     private suspend fun scanVPN() {
         val adapter = adapter ?: return
-        val binding = binding ?: return
         val flag =
             PackageManager.GET_SERVICES or if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 PackageManager.MATCH_UNINSTALLED_PACKAGES

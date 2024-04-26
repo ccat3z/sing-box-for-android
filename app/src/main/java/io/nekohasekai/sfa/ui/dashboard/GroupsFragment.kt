@@ -2,23 +2,22 @@ package io.nekohasekai.sfa.ui.dashboard
 
 import android.annotation.SuppressLint
 import android.os.Bundle
-import android.text.Spannable
-import android.text.SpannableStringBuilder
-import android.text.style.ForegroundColorSpan
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
+import androidx.core.widget.addTextChangedListener
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.SimpleItemAnimator
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import io.nekohasekai.libbox.Libbox
 import io.nekohasekai.libbox.OutboundGroup
-import io.nekohasekai.libbox.OutboundGroupItem
 import io.nekohasekai.sfa.R
 import io.nekohasekai.sfa.constant.Status
 import io.nekohasekai.sfa.databinding.FragmentDashboardGroupsBinding
@@ -26,8 +25,10 @@ import io.nekohasekai.sfa.databinding.ViewDashboardGroupBinding
 import io.nekohasekai.sfa.databinding.ViewDashboardGroupItemBinding
 import io.nekohasekai.sfa.ktx.colorForURLTestDelay
 import io.nekohasekai.sfa.ktx.errorDialogBuilder
+import io.nekohasekai.sfa.ktx.text
 import io.nekohasekai.sfa.ui.MainActivity
 import io.nekohasekai.sfa.utils.CommandClient
+import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
@@ -93,18 +94,33 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
     }
 
     @SuppressLint("NotifyDataSetChanged")
-    override fun updateGroups(groups: List<OutboundGroup>) {
+    override fun updateGroups(newGroups: MutableList<OutboundGroup>) {
         val adapter = adapter ?: return
         activity?.runOnUiThread {
-            updateDisplayed(groups.isNotEmpty())
-            adapter.groups = groups
-            adapter.notifyDataSetChanged()
+            updateDisplayed(newGroups.isNotEmpty())
+            adapter.setGroups(newGroups.map(::Group))
         }
     }
 
     private class Adapter : RecyclerView.Adapter<GroupView>() {
 
-        lateinit var groups: List<OutboundGroup>
+        private lateinit var groups: MutableList<Group>
+
+        @SuppressLint("NotifyDataSetChanged")
+        fun setGroups(newGroups: List<Group>) {
+            if (!::groups.isInitialized || groups.size != newGroups.size) {
+                groups = newGroups.toMutableList()
+                notifyDataSetChanged()
+            } else {
+                newGroups.forEachIndexed { index, group ->
+                    if (this.groups[index] != group) {
+                        this.groups[index] = group
+                        notifyItemChanged(index)
+                    }
+                }
+            }
+        }
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GroupView {
             return GroupView(
                 ViewDashboardGroupBinding.inflate(
@@ -130,10 +146,14 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
     private class GroupView(val binding: ViewDashboardGroupBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        lateinit var group: OutboundGroup
-        lateinit var items: MutableList<OutboundGroupItem>
-        lateinit var adapter: ItemAdapter
-        fun bind(group: OutboundGroup) {
+        private lateinit var group: Group
+        private lateinit var items: List<GroupItem>
+        private lateinit var adapter: ItemAdapter
+        private lateinit var textWatcher: TextWatcher
+
+        @OptIn(DelicateCoroutinesApi::class)
+        @SuppressLint("NotifyDataSetChanged")
+        fun bind(group: Group) {
             this.group = group
             binding.groupName.text = group.tag
             binding.groupType.text = Libbox.proxyDisplayType(group.type)
@@ -148,18 +168,21 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
                     }
                 }
             }
-            items = mutableListOf()
-            val itemIterator = group.items
-            while (itemIterator.hasNext()) {
-                items.add(itemIterator.next())
+            items = group.items
+            if (!::adapter.isInitialized) {
+                adapter = ItemAdapter(this, group, items.toMutableList())
+                binding.itemList.adapter = adapter
+                (binding.itemList.itemAnimator as SimpleItemAnimator).supportsChangeAnimations =
+                    false
+                binding.itemList.layoutManager = GridLayoutManager(binding.root.context, 2)
+            } else {
+                adapter.group = group
+                adapter.setItems(items)
             }
-            adapter = ItemAdapter(this, group, items)
-            binding.itemList.adapter = adapter
-            (binding.itemList.itemAnimator as SimpleItemAnimator).supportsChangeAnimations = false
-            binding.itemList.layoutManager = GridLayoutManager(binding.root.context, 2)
             updateExpand()
         }
 
+        @OptIn(DelicateCoroutinesApi::class)
         private fun updateExpand(isExpand: Boolean? = null) {
             val newExpandStatus = isExpand ?: group.isExpand
             if (isExpand != null) {
@@ -174,33 +197,39 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
                 }
             }
             binding.itemList.isVisible = newExpandStatus
-            binding.itemText.isVisible = !newExpandStatus
+            binding.groupSelected.isVisible = !newExpandStatus
             if (!newExpandStatus) {
-                val builder = SpannableStringBuilder()
-                items.forEach {
-                    if (it.tag == group.selected) {
-                        builder.append("▣")
-                    } else {
-                        builder.append("■")
+                binding.groupSelected.text = group.selected
+                binding.groupSelected.isEnabled = group.selectable
+                if (group.selectable) {
+                    val textView = (binding.groupSelected.editText as MaterialAutoCompleteTextView)
+                    textView.setSimpleItems(group.items.toList().map { it.tag }.toTypedArray())
+                    if (::textWatcher.isInitialized) {
+                        textView.removeTextChangedListener(textWatcher)
                     }
-                    builder.setSpan(
-                        ForegroundColorSpan(
-                            colorForURLTestDelay(
-                                binding.root.context,
-                                it.urlTestDelay
-                            )
-                        ),
-                        builder.length - 1,
-                        builder.length,
-                        Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                    )
-                    builder.append(" ")
+                    textWatcher = textView.addTextChangedListener {
+                        val selected = textView.text.toString()
+                        if (selected != group.selected) {
+                            updateSelected(group, selected)
+                        }
+                        GlobalScope.launch {
+                            runCatching {
+                                Libbox.newStandaloneCommandClient()
+                                    .selectOutbound(group.tag, selected)
+                            }.onFailure {
+                                withContext(Dispatchers.Main) {
+                                    binding.root.context.errorDialogBuilder(it).show()
+                                }
+                            }
+                        }
+                    }
                 }
-                binding.itemText.text = builder
             }
             if (newExpandStatus) {
+                binding.urlTestButton.isVisible = true
                 binding.expandButton.setImageResource(R.drawable.ic_expand_less_24)
             } else {
+                binding.urlTestButton.isVisible = false
                 binding.expandButton.setImageResource(R.drawable.ic_expand_more_24)
             }
             binding.expandButton.setOnClickListener {
@@ -208,9 +237,9 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
             }
         }
 
-        fun updateSelected(group: OutboundGroup, item: OutboundGroupItem) {
+        fun updateSelected(group: Group, itemTag: String) {
             val oldSelected = items.indexOfFirst { it.tag == group.selected }
-            group.selected = item.tag
+            group.selected = itemTag
             if (oldSelected != -1) {
                 adapter.notifyItemChanged(oldSelected)
             }
@@ -219,10 +248,26 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
 
     private class ItemAdapter(
         val groupView: GroupView,
-        val group: OutboundGroup,
-        val items: List<OutboundGroupItem>
+        var group: Group,
+        private var items: MutableList<GroupItem> = mutableListOf()
     ) :
         RecyclerView.Adapter<ItemGroupView>() {
+
+        @SuppressLint("NotifyDataSetChanged")
+        fun setItems(newItems: List<GroupItem>) {
+            if (items.size != newItems.size) {
+                items = newItems.toMutableList()
+                notifyDataSetChanged()
+            } else {
+                newItems.forEachIndexed { index, item ->
+                    if (items[index] != item) {
+                        items[index] = item
+                        notifyItemChanged(index)
+                    }
+                }
+            }
+        }
+
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ItemGroupView {
             return ItemGroupView(
                 ViewDashboardGroupItemBinding.inflate(
@@ -245,11 +290,12 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
     private class ItemGroupView(val binding: ViewDashboardGroupItemBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(groupView: GroupView, group: OutboundGroup, item: OutboundGroupItem) {
+        @OptIn(DelicateCoroutinesApi::class)
+        fun bind(groupView: GroupView, group: Group, item: GroupItem) {
             if (group.selectable) {
                 binding.itemCard.setOnClickListener {
                     binding.selectedView.isVisible = true
-                    groupView.updateSelected(group, item)
+                    groupView.updateSelected(group, item.tag)
                     GlobalScope.launch {
                         runCatching {
                             Libbox.newStandaloneCommandClient().selectOutbound(group.tag, item.tag)
@@ -276,6 +322,5 @@ class GroupsFragment : Fragment(), CommandClient.Handler {
             }
         }
     }
-
 }
 
