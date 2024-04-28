@@ -105,9 +105,9 @@ class BoxService(
                 }
 
                 PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        serviceUpdateIdleMode()
-                    }
+//                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+//                        serviceUpdateIdleMode()
+//                    }
                 }
             }
         }
