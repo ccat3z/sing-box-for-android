@@ -261,6 +261,11 @@ open class CommandClient(
                 return
             }
             val logs = messageList.toList()
+            // Mirror sing-box logs into logcat (tag "sing-box") so they can be
+            // captured via `adb logcat` for headless/emulator diagnostics.
+            for (entry in logs) {
+                Log.println(toAndroidPriority(entry.level), "sing-box", entry.message)
+            }
             getAllHandlers().forEach { it.appendLogs(logs) }
         }
 
@@ -285,4 +290,13 @@ open class CommandClient(
             getAllHandlers().forEach { it.writeConnectionEvents(events) }
         }
     }
+}
+
+// Map libbox log.Level (Panic=0 ... Trace=6) to android.util.Log priorities.
+private fun toAndroidPriority(level: Int): Int = when (level) {
+    0, 1 -> Log.ERROR // Panic, Fatal
+    2 -> Log.ERROR // Error
+    3 -> Log.WARN // Warning
+    4 -> Log.INFO // Info
+    else -> Log.DEBUG // Debug, Trace, Default
 }
