@@ -73,6 +73,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
     private val status = MutableLiveData(Status.Stopped)
     private val binder = ServiceBinder(status)
     private val notification = ServiceNotification(status, service)
+    private val logcatMirror = LogcatLogMirror()
     private lateinit var commandServer: CommandServer
 
     private var receiverRegistered = false
@@ -97,6 +98,10 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         val commandServer = CommandServer(this, platformInterface)
         commandServer.start()
         this.commandServer = commandServer
+        // The command server gRPC socket is up; subscribe to the log stream so
+        // sing-box logs reach logcat (tag "sing-box") in real time, independent
+        // of whether the UI / Logs tab is open.
+        logcatMirror.connect()
     }
 
     private var lastProfileName = ""
@@ -286,6 +291,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
                 fileDescriptor = null
             }
             DefaultNetworkMonitor.stop()
+            logcatMirror.disconnect()
             closeService()
             commandServer.apply {
                 close()
@@ -316,6 +322,7 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         }
         DefaultNetworkMonitor.stop()
         if (::commandServer.isInitialized) {
+            logcatMirror.disconnect()
             closeService()
             commandServer.close()
         }
