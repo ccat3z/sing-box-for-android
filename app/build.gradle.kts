@@ -81,14 +81,26 @@ android {
             storePassword = getProps("KEYSTORE_PASS")
             keyAlias = getProps("ALIAS_NAME")
             keyPassword = getProps("ALIAS_PASS")
+            // Both debug and release APKs are signed with this keystore (see
+            // buildTypes below), so missing creds must fail the build rather
+            // than silently fall back to the default debug key. Creds come from
+            // LOCAL_PROPERTIES / local.properties via getProps (fed by justfile
+            // from .env).
+            if (storePassword!!.isEmpty() || keyAlias!!.isEmpty() || keyPassword!!.isEmpty()) {
+                throw GradleException(
+                    "release keystore creds missing: set KEYSTORE_PASS/ALIAS_NAME/ALIAS_PASS " +
+                        "in local.properties or LOCAL_PROPERTIES (justfile loads them from .env)",
+                )
+            }
         }
     }
 
     buildTypes {
         debug {
-            if (getProps("KEYSTORE_PASS").isNotEmpty()) {
-                signingConfig = signingConfigs.getByName("release")
-            }
+            // Debug is also signed with the release keystore so the APK shares the
+            // applicationId/signature of the installed build (adb install -r without
+            // a signature clash) and keeps debuggable=true for run-as on real devices.
+            signingConfig = signingConfigs.getByName("release")
         }
         release {
             isMinifyEnabled = true
