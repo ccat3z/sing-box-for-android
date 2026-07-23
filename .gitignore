@@ -10,6 +10,9 @@ build/
 .cxx
 local.properties
 /app/libs/
+# frida-gadget .so + config are downloaded by `just frida-gadget` (see justfile),
+# not committed — they're large binaries needed only for native crash debugging.
+/app/src/main/jniLibs/
 /service-account-credentials.json
 /CLAUDE.md
 /.claude/
