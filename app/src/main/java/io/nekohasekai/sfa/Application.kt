@@ -83,18 +83,6 @@ class Application : Application() {
     }
 
     companion object {
-        init {
-            // Load frida-gadget early (before libbox.so / Go runtime starts) so
-            // the gadget can hook Go's runtime.sigtramp for native crash
-            // forensics. Debug-only build artifact (gadget .so lives in jniLibs
-            // of debug APKs). Failure (e.g. ABI mismatch in a stripped APK) is
-            // non-fatal — the app still runs, just without frida attached.
-            try {
-                System.loadLibrary("frida-gadget")
-            } catch (_: Throwable) {
-            }
-        }
-
         lateinit var application: BoxApplication
         val notification by lazy { application.getSystemService<NotificationManager>()!! }
         val connectivity by lazy { application.getSystemService<ConnectivityManager>()!! }
