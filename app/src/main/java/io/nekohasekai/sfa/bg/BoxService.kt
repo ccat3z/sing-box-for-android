@@ -115,10 +115,6 @@ class BoxService(private val service: Service, private val platformInterface: Pl
         val commandServer = CommandServer(this, platformInterface)
         commandServer.start()
         this.commandServer = commandServer
-        // The command server gRPC socket is up; subscribe to the log stream so
-        // sing-box logs reach logcat (tag "sing-box") in real time, independent
-        // of whether the UI / Logs tab is open.
-        logcatMirror.connect()
     }
 
     private var lastProfileName = ""
@@ -190,6 +186,12 @@ class BoxService(private val service: Service, private val platformInterface: Pl
             }
 
             status.postValue(Status.Started)
+            // Subscribe to the log stream only now, once the core instance is
+            // up: connecting during STARTING races the daemon —
+            // GetDefaultLogLevel fails with os.ErrInvalid while no instance
+            // exists, and the mirror's CommandClient treats that as fatal
+            // (no retry), silencing the mirror for the whole service lifetime.
+            logcatMirror.connect()
             withContext(Dispatchers.Main) {
                 notification.show(lastProfileName, R.string.status_started)
             }

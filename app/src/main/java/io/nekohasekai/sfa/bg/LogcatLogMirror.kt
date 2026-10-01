@@ -5,6 +5,8 @@ import io.nekohasekai.libbox.LogEntry
 import io.nekohasekai.sfa.utils.CommandClient
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /**
  * Resident mirror of sing-box logs into logcat (tag "sing-box").
@@ -27,12 +29,32 @@ class LogcatLogMirror : CommandClient.Handler {
     private val commandClient =
         CommandClient(GlobalScope, CommandClient.ConnectionType.Log, this)
 
+    private var stopped = false
+
     fun connect() {
+        stopped = false
         commandClient.connect()
     }
 
     fun disconnect() {
+        stopped = true
         commandClient.disconnect()
+    }
+
+    override fun onConnectionError(kind: CommandClient.ConnectionErrorKind, message: String) {
+        // The wrapper CommandClient never retries on its own. For this
+        // resident subscriber a transient failure (e.g. connecting while the
+        // core instance is still coming up) must not silence the mirror for
+        // the rest of the service lifetime — reconnect after a short delay.
+        if (stopped) return
+        Log.w(TAG, "log stream error ($kind): $message; retrying in ${RETRY_DELAY_MS}ms")
+        @OptIn(DelicateCoroutinesApi::class)
+        GlobalScope.launch {
+            delay(RETRY_DELAY_MS)
+            if (!stopped) {
+                commandClient.connect()
+            }
+        }
     }
 
     override fun appendLogs(message: List<LogEntry>) {
@@ -43,6 +65,7 @@ class LogcatLogMirror : CommandClient.Handler {
 
     companion object {
         private const val TAG = "sing-box"
+        private const val RETRY_DELAY_MS = 3_000L
     }
 }
 
